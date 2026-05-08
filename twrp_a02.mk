@@ -15,7 +15,7 @@ $(call inherit-product, device/samsung/a02/device.mk)
 PRODUCT_DEVICE := a02
 PRODUCT_NAME := twrp_a02
 PRODUCT_BRAND := samsung
-PRODUCT_MODEL := SM-A022F
+PRODUCT_MODEL := SM-A022M
 PRODUCT_MANUFACTURER := samsung
 
 PRODUCT_GMS_CLIENTID_BASE := android-samsung-ss
