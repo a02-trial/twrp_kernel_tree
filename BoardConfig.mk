@@ -31,7 +31,7 @@ BOARD_KERNEL_BASE := 0x40000000
 BOARD_KERNEL_PAGESIZE := 2048
 TARGET_PREBUILT_KERNEL := $(DEVICE_PATH)/prebuilt/Image
 BOARD_KERNEL_CMDLINE := androidboot.hardware=mt6739
-BOARD_MKBOOTIMG_ARGS := --kernel_offset 0x00008000 --ramdisk_offset 0x05000000 --tags_offset 0x04000000 --header_version 2 --board SRPTK19C000SA
+BOARD_MKBOOTIMG_ARGS := --kernel_offset 0x00008000 --ramdisk_offset 0x05000000 --tags_offset 0x04000000 --header_version 2 --board SRPTL30A004
 
 # Partitions
 BOARD_FLASH_BLOCK_SIZE := 131072
