@@ -7,7 +7,6 @@
 LOCAL_PATH := device/samsung/a02
 # --- Bagian Copy Files ---
 PRODUCT_COPY_FILES += \
-    $(LOCAL_PATH)/recovery/root/system/etc/ueventd.rc:recovery/root/system/etc/ueventd.rc \
     $(LOCAL_PATH)/recovery/root/init.recovery.mt6739.rc:recovery/root/init.recovery.mt6739.rc \
     $(LOCAL_PATH)/recovery/root/init.recovery.samsung.rc:recovery/root/init.recovery.samsung.rc \
     $(LOCAL_PATH)/recovery/root/init.recovery.usb.rc:recovery/root/init.recovery.usb.rc \
