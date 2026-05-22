@@ -6,7 +6,7 @@ on:
       MANIFEST_BRANCH:
         description: 'OrangeFox Branch'
         required: true
-        default: '12.1'
+        default: '11.0'
         type: choice
         options:
         - 12.1
@@ -14,7 +14,7 @@ on:
       DEVICE_TREE:
         description: 'Device Tree URL'
         required: true
-        default: 'https://github.com/username/device_tree'
+        default: 'https://github.com/a02-trial/twrp_kernel_tree'
       DEVICE_TREE_BRANCH:
         description: 'Device Tree Branch'
         required: true
@@ -23,7 +23,7 @@ on:
 jobs:
   build:
     name: Build OFRP
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-24.04
     permissions:
       contents: write
     env:
