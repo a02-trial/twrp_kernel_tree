@@ -155,9 +155,9 @@ FOX_NO_SAMSUNG_SPECIAL       := 1
 FOX_USE_RECOVERY_FLASHLIGHT  := 0
 
 # Kompresi LZMA untuk ramdisk - pasangan kernel LZMA 7MB
-OF_USE_LZMA_COMPRESSION  := 1
-BOARD_RAMDISK_USE_LZMA   := true
-LZMA_RAMDISK_TARGETS     := recovery
+# OF_USE_LZMA_COMPRESSION  := 1
+# BOARD_RAMDISK_USE_LZMA   := true
+# LZMA_RAMDISK_TARGETS     := recovery
 
 # Display - Samsung A02 720x1600 punch-hole
 OF_SCREEN_H           := 1600
