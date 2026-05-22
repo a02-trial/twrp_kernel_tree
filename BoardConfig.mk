@@ -72,7 +72,7 @@ BOARD_ROOT_EXTRA_FOLDERS := cache efs optics prism omr
 # Recovery
 TARGET_USERIMAGES_USE_EXT4  := true
 TARGET_USERIMAGES_USE_F2FS  := true
-TARGET_RECOVERY_FSTAB       := $(DEVICE_PATH)/root/system/etc/recovery.fstab
+TARGET_RECOVERY_FSTAB       := $(DEVICE_PATH)/recovery/root/system/etc/recovery.fstab
 
 # Security patch
 PLATFORM_VERSION         := 11
