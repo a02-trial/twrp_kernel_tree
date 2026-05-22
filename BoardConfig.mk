@@ -130,20 +130,14 @@ TARGET_USES_MKE2FS             := true
 BOARD_SUPPRESS_SECURE_ERASE    := true
 
 # ============================================================
-#   ___  _____  ___   ____   _   _  ____  _____  _____  __  __
-#  / _ \|  __ \|   \ |  _ \ | \ | |/ ___||  ___|/ _ \ \/ /
-# | | | | |_/ /|  | || |_) ||  \| || |  _ | |_  | | | \  / 
-# | |_| |    / | |/ /|  _ < | |\  || |_| ||  _| | |_| /  \ 
-#  \___/|_|\_\ |___/ |_| \_\|_| \_| \____||_|    \___//_/\_\
-#
-#  OrangeFox Configuration - Samsung Galaxy A02 (a02)
-#  Optimized for 24MB recovery partition
+# ORANGEFOX CONFIGURATION
+# Samsung Galaxy A02 (a02) - Optimized for 24MB partition
 # ============================================================
 
 # Identity
-FOX_VERSION            := R12.1
+FOX_VERSION            := R11.0
 FOX_BUILD_TYPE         := Unofficial
-OF_MAINTAINER          := YourName
+OF_MAINTAINER          := rdbckp
 TARGET_DEVICE_ALT      := a02, SM-A022F, a022f, a022
 
 # Wajib buat Samsung
