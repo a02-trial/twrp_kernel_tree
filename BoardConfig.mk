@@ -134,7 +134,7 @@ TW_USE_NEW_MINADBD               := true
 # ============================================================
 
 # Identity
-FOX_VERSION       := R12.1
+FOX_MAINTAINER_PATCH_VERSION := 1
 FOX_BUILD_TYPE    := Unofficial
 OF_MAINTAINER     := rdbckp
 TARGET_DEVICE_ALT := a02, SM-A022F, a022f, a022
