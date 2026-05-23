@@ -47,8 +47,18 @@ jobs:
         git clone https://gitlab.com/OrangeFox/misc/scripts
         cd scripts && sudo bash setup/android_build_env.sh
 
+    - name: Cache Python 2.7
+      id: cache-python2
+      uses: actions/cache@v4
+      with:
+        path: |
+          /usr/local/bin/python2.7
+          /usr/local/lib/python2.7
+          /usr/local/include/python2.7
+        key: ${{ runner.os }}-python-2.7.18
+
     - name: Installing python2 for legacy builds
-      if: inputs.MANIFEST_BRANCH != '12.1'
+      if: inputs.MANIFEST_BRANCH != '12.1' && steps.cache-python2.outputs.cache-hit != 'true'
       run: |
         cd /tmp
         wget https://www.python.org/ftp/python/2.7.18/Python-2.7.18.tgz
@@ -57,6 +67,10 @@ jobs:
         ./configure --enable-optimizations
         make -j$(nproc)
         sudo make install
+
+    - name: Setup Python2 Symlinks
+      if: inputs.MANIFEST_BRANCH != '12.1'
+      run: |
         sudo ln -sf /usr/local/bin/python2.7 /usr/bin/python
         sudo ln -sf /usr/local/bin/python2.7 /usr/bin/python2
         python2 --version
