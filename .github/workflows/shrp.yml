@@ -123,12 +123,15 @@ jobs:
         path: ${{ steps.props.outputs.workdir }}/.repo
         key: ${{ runner.os }}-shrp-sync-${{ github.event.inputs.MANIFEST_BRANCH }}-${{ steps.props.outputs.date }}
       
+    # PERBAIKAN DI SINI: Buka gembok permission folder dan paksa buat jalur sebelum clone
     - name: Clone Device Tree
       run: |
+        echo "Membuka kunci folder workspace dari status Read-Only..."
+        sudo chmod -R 777 .
+        mkdir -p ${{ github.event.inputs.DEVICE_PATH }}
         git clone ${{ github.event.inputs.DEVICE_TREE }} -b ${{ github.event.inputs.DEVICE_TREE_BRANCH }} ./${{ github.event.inputs.DEVICE_PATH }}
       working-directory: ${{ steps.props.outputs.workdir }}
 
-    # REVISI DISINI: Kita ga clone repo luar lagi, tapi langsung potong baris error-nya lewat sed!
     - name: Patch Blueprint Soong Namespace
       run: |
         BP_FILE="bootable/recovery/prebuilt/Android.bp"
