@@ -119,16 +119,10 @@ jobs:
         git config --global user.email "theodoreluchy@gmail.com"
         repo init --depth=1 -u ${{ github.event.inputs.MANIFEST_URL }} -b ${{ github.event.inputs.MANIFEST_BRANCH }}
         
-        # FIX UTAMA: Ngebabat repo external/lptools yang mati dari manifest lokal sebelum sync dilakukan
-        if [ -f ".repo/manifests/default.xml" ]; then
-          echo "Menghapus referensi external/lptools dari manifest..."
-          sed -i '/external\/lptools/d' .repo/manifests/default.xml
-          sed -i '/vendor_lptools/d' .repo/manifests/default.xml
-        elif [ -f ".repo/manifest.xml" ]; then
-          echo "Menghapus referensi external/lptools dari manifest utama..."
-          sed -i '/external\/lptools/d' .repo/manifest.xml
-          sed -i '/vendor_lptools/d' .repo/manifest.xml
-        fi
+        # FIX SAPU JAGAT: Menyisir dan melibas baris lptools di SEMUA file XML manifest (utama maupun snippets)
+        echo "Ngebabat semua referensi lptools dari seluruh penjuru manifest lokal..."
+        find .repo/ -name "*.xml" -type f -exec sed -i '/external\/lptools/d' {} +
+        find .repo/ -name "*.xml" -type f -exec sed -i '/vendor_lptools/d' {} +
 
     - name: Repo Sync
       run: |
