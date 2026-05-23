@@ -41,6 +41,9 @@ jobs:
       with:
         swap-size-gb: 12
 
+    - name: Set Build Date
+      run: echo "BUILD_DATE=$(TZ=Asia/Jakarta date +%Y%m%d)" >> $GITHUB_ENV
+
     - name: Build Environment
       run: |
         sudo apt install aria2 -y
@@ -49,6 +52,7 @@ jobs:
 
     - name: Cache Python 2.7
       id: cache-python2
+      if: github.event.inputs.MANIFEST_BRANCH != '12.1'
       uses: actions/cache@v4
       with:
         path: |
@@ -58,7 +62,7 @@ jobs:
         key: ${{ runner.os }}-python-2.7.18
 
     - name: Installing python2 for legacy builds
-      if: inputs.MANIFEST_BRANCH != '12.1' && steps.cache-python2.outputs.cache-hit != 'true'
+      if: github.event.inputs.MANIFEST_BRANCH != '12.1' && steps.cache-python2.outputs.cache-hit != 'true'
       run: |
         cd /tmp
         wget https://www.python.org/ftp/python/2.7.18/Python-2.7.18.tgz
@@ -67,13 +71,25 @@ jobs:
         ./configure --enable-optimizations
         make -j$(nproc)
         sudo make install
+        # Mengubah kepemilikan folder agar actions/cache bisa membaca & menyimpannya di akhir sesi
+        sudo chown -R $USER:$USER /usr/local/bin/python2.7 /usr/local/lib/python2.7 /usr/local/include/python2.7
 
     - name: Setup Python2 Symlinks
-      if: inputs.MANIFEST_BRANCH != '12.1'
+      if: github.event.inputs.MANIFEST_BRANCH != '12.1'
       run: |
         sudo ln -sf /usr/local/bin/python2.7 /usr/bin/python
         sudo ln -sf /usr/local/bin/python2.7 /usr/bin/python2
         python2 --version
+
+    - name: Cache OrangeFox Source (Base Repo)
+      id: cache-orangefox
+      uses: actions/cache@v4
+      with:
+        # Hanya menge-cache folder .repo untuk menghemat storage cache GitHub (Limit 10GB)
+        path: ${GITHUB_WORKSPACE}/OrangeFox/fox_${{ github.event.inputs.MANIFEST_BRANCH }}/.repo
+        key: ${{ runner.os }}-ofrp-sync-${{ github.event.inputs.MANIFEST_BRANCH }}-${{ env.BUILD_DATE }}
+        restore-keys: |
+          ${{ runner.os }}-ofrp-sync-${{ github.event.inputs.MANIFEST_BRANCH }}-
 
     - name: Sync OrangeFox Manifest
       run: |
@@ -82,29 +98,34 @@ jobs:
         git config --global user.name "github-actions"
         git config --global user.email "actions@github.com"
         git clone https://gitlab.com/OrangeFox/sync.git
-        if [ "${{ inputs.MANIFEST_BRANCH }}" == "12.1" ]; then
-          echo "Syncing modern branch: ${{ inputs.MANIFEST_BRANCH }}"
+        
+        # Buat struktur folder tujuan agar skrip sync langsung mengenali jika ada cache .repo yang di-restore
+        mkdir -p ${GITHUB_WORKSPACE}/OrangeFox/fox_${{ github.event.inputs.MANIFEST_BRANCH }}
+
+        if [ "${{ github.event.inputs.MANIFEST_BRANCH }}" == "12.1" ]; then
+          echo "Syncing modern branch: ${{ github.event.inputs.MANIFEST_BRANCH }}"
           cd sync
           ./orangefox_sync.sh \
-            --branch ${{ inputs.MANIFEST_BRANCH }} \
-            --path ${GITHUB_WORKSPACE}/OrangeFox/fox_${{ inputs.MANIFEST_BRANCH }}
+            --branch ${{ github.event.inputs.MANIFEST_BRANCH }} \
+            --path ${GITHUB_WORKSPACE}/OrangeFox/fox_${{ github.event.inputs.MANIFEST_BRANCH }}
         else
-          echo "Syncing legacy branch: ${{ inputs.MANIFEST_BRANCH }}"
+          echo "Syncing legacy branch: ${{ github.event.inputs.MANIFEST_BRANCH }}"
           cd sync/legacy
           ./orangefox_sync_legacy.sh \
-            --branch ${{ inputs.MANIFEST_BRANCH }} \
-            --path ${GITHUB_WORKSPACE}/OrangeFox/fox_${{ inputs.MANIFEST_BRANCH }}
+            --branch ${{ github.event.inputs.MANIFEST_BRANCH }} \
+            --path ${GITHUB_WORKSPACE}/OrangeFox/fox_${{ github.event.inputs.MANIFEST_BRANCH }}
         fi
 
     - name: Clone Device Tree
       run: |
-        cd ${GITHUB_WORKSPACE}/OrangeFox/fox_${{ inputs.MANIFEST_BRANCH }}
-        git clone ${{ inputs.DEVICE_TREE }} \
-          -b ${{ inputs.DEVICE_TREE_BRANCH }} \
+        cd ${GITHUB_WORKSPACE}/OrangeFox/fox_${{ github.event.inputs.MANIFEST_BRANCH }}
+        git clone ${{ github.event.inputs.DEVICE_TREE }} \
+          -b ${{ github.event.inputs.DEVICE_TREE_BRANCH }} \
           ./device_tree
         cd device_tree
-        BRAND=$(grep -m1 'PRODUCT_BRAND' *.mk | sed 's/.*:=\s*//')
-        CODENAME=$(grep -m1 'PRODUCT_DEVICE' *.mk | sed 's/.*:=\s*//')
+        # Membersihkan spasi gaib dan karakter \r pembacaan berkas .mk
+        BRAND=$(grep -m1 'PRODUCT_BRAND' *.mk | sed 's/.*:=\s*//' | tr -d '\r ' )
+        CODENAME=$(grep -m1 'PRODUCT_DEVICE' *.mk | sed 's/.*:=\s*//' | tr -d '\r ' )
         echo "DEVICE_NAME=${CODENAME}" >> $GITHUB_ENV
         echo "DEVICE_BRAND=${BRAND}" >> $GITHUB_ENV
         cd ../
@@ -113,12 +134,12 @@ jobs:
 
     - name: Build OrangeFox
       run: |
-        cd ${GITHUB_WORKSPACE}/OrangeFox/fox_${{ inputs.MANIFEST_BRANCH }}
+        cd ${GITHUB_WORKSPACE}/OrangeFox/fox_${{ github.event.inputs.MANIFEST_BRANCH }}
         set +e
         source build/envsetup.sh
         export ALLOW_MISSING_DEPENDENCIES=true
         set -e
-        if [ "${{ inputs.MANIFEST_BRANCH }}" == "12.1" ]; then
+        if [ "${{ github.event.inputs.MANIFEST_BRANCH }}" == "12.1" ]; then
           lunch twrp_${{ env.DEVICE_NAME }}-eng
         else
           lunch omni_${{ env.DEVICE_NAME }}-eng
@@ -128,32 +149,34 @@ jobs:
 
     - name: Check Build Result
       run: |
-        cd ${GITHUB_WORKSPACE}/OrangeFox/fox_${{ inputs.MANIFEST_BRANCH }}
-        if [ -f out/target/product/${{ env.DEVICE_NAME }}/OrangeFox*.img ]; then
+        cd ${GITHUB_WORKSPACE}/OrangeFox/fox_${{ github.event.inputs.MANIFEST_BRANCH }}
+        # Pencarian fleksibel menggunakan find untuk menghindari salah jalur file
+        IMG_FILE=$(find out/target/product/ -name "OrangeFox*.img" | head -n 1)
+        ZIP_FILE=$(find out/target/product/ -name "OrangeFox*.zip" | head -n 1)
+        
+        if [ -f "$IMG_FILE" ]; then
           echo "CHECK_IMG_IS_OK=true" >> $GITHUB_ENV
-          echo "MD5_IMG=$(md5sum out/target/product/${{ env.DEVICE_NAME }}/OrangeFox*.img | cut -d ' ' -f 1)" >> $GITHUB_ENV
+          echo "MD5_IMG=$(md5sum $IMG_FILE | cut -d ' ' -f 1)" >> $GITHUB_ENV
         else
           echo "Recovery image not found!"
           exit 1
         fi
-        if [ -f out/target/product/${{ env.DEVICE_NAME }}/OrangeFox*.zip ]; then
+        
+        if [ -f "$ZIP_FILE" ]; then
           echo "CHECK_ZIP_IS_OK=true" >> $GITHUB_ENV
-          echo "MD5_ZIP=$(md5sum out/target/product/${{ env.DEVICE_NAME }}/OrangeFox*.zip | cut -d ' ' -f 1)" >> $GITHUB_ENV
+          echo "MD5_ZIP=$(md5sum $ZIP_FILE | cut -d ' ' -f 1)" >> $GITHUB_ENV
         fi
-
-    - name: Set Build Date
-      run: echo "BUILD_DATE=$(TZ=Asia/Jakarta date +%Y%m%d)" >> $GITHUB_ENV
 
     - name: Upload to Release
       uses: softprops/action-gh-release@master
       with:
         files: |
-          OrangeFox/fox_${{ inputs.MANIFEST_BRANCH }}/out/target/product/${{ env.DEVICE_NAME }}/OrangeFox*.img
-          OrangeFox/fox_${{ inputs.MANIFEST_BRANCH }}/out/target/product/${{ env.DEVICE_NAME }}/OrangeFox*.zip
-        name: "OrangeFox ${{ inputs.MANIFEST_BRANCH }} - ${{ env.DEVICE_NAME }} // ${{ env.BUILD_DATE }}"
+          OrangeFox/fox_${{ github.event.inputs.MANIFEST_BRANCH }}/out/target/product/**/OrangeFox*.img
+          OrangeFox/fox_${{ github.event.inputs.MANIFEST_BRANCH }}/out/target/product/**/OrangeFox*.zip
+        name: "OrangeFox ${{ github.event.inputs.MANIFEST_BRANCH }} - ${{ env.DEVICE_NAME }} // ${{ env.BUILD_DATE }}"
         tag_name: ${{ github.run_id }}
         body: |
-          Branch : ${{ inputs.MANIFEST_BRANCH }}
+          Branch : ${{ github.event.inputs.MANIFEST_BRANCH }}
           Device : ${{ env.DEVICE_NAME }}
           Built by : ${{ github.actor }}
           MD5 (img) : ${{ env.MD5_IMG }}
