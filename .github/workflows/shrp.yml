@@ -90,7 +90,6 @@ jobs:
         chmod a+x ~/bin/repo
         sudo ln -sf ~/bin/repo /usr/bin/repo
 
-    # MODIFIKASI TAČTIS: Cuma nge-restore cache di awal (ga bakal otomatis nge-save pas akhir)
     - name: Restore SHRP Source Cache
       id: restore-shrp
       uses: actions/cache/restore@v4
@@ -117,7 +116,6 @@ jobs:
         repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
       working-directory: ${{ steps.props.outputs.workdir }}
 
-    # MODIFIKASI UTAMA: Paksa SAVE cache detik ini juga! Mau build eror di bawah, repo aman kesimpen!
     - name: Force Save SHRP Source Cache (Anti Error Pegel)
       uses: actions/cache/save@v4
       if: always() && steps.restore-shrp.outputs.cache-hit != 'true'
@@ -130,9 +128,17 @@ jobs:
         git clone ${{ github.event.inputs.DEVICE_TREE }} -b ${{ github.event.inputs.DEVICE_TREE_BRANCH }} ./${{ github.event.inputs.DEVICE_PATH }}
       working-directory: ${{ steps.props.outputs.workdir }}
 
-    - name: Clone Missing/Deleted Repositories (Tambal lptools)
+    # REVISI DISINI: Kita ga clone repo luar lagi, tapi langsung potong baris error-nya lewat sed!
+    - name: Patch Blueprint Soong Namespace
       run: |
-        git clone https://github.com/crdroidandroid/android_external_lptools.git -b 11.0 ./external/lptools
+        BP_FILE="bootable/recovery/prebuilt/Android.bp"
+        if [ -f "$BP_FILE" ]; then
+          echo "Patching $BP_FILE untuk membuang paksa namespace lptools..."
+          sed -i '/"external\/lptools"/d' $BP_FILE
+        else
+          echo "File Android.bp tidak ditemukan di jalur prebuilt, mencari fleksibel..."
+          find . -name "Android.bp" -type f -exec sed -i '/"external\/lptools"/d' {} +
+        fi
       working-directory: ${{ steps.props.outputs.workdir }}
 
     - name: Check Build Tree Type
