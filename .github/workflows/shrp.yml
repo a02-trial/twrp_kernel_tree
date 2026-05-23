@@ -119,7 +119,7 @@ jobs:
         git config --global user.email "theodoreluchy@gmail.com"
         repo init --depth=1 -u ${{ github.event.inputs.MANIFEST_URL }} -b ${{ github.event.inputs.MANIFEST_BRANCH }}
         
-        # FIX SAPU JAGAT: Menyisir dan melibas baris lptools di SEMUA file XML manifest (utama maupun snippets)
+        # FIX SYNC: Menyisir dan melibas baris lptools di SEMUA file XML manifest agar sync lolos
         echo "Ngebabat semua referensi lptools dari seluruh penjuru manifest lokal..."
         find .repo/ -name "*.xml" -type f -exec sed -i '/external\/lptools/d' {} +
         find .repo/ -name "*.xml" -type f -exec sed -i '/vendor_lptools/d' {} +
@@ -132,6 +132,12 @@ jobs:
     - name: Clone Device Tree
       run: |
         git clone ${{ github.event.inputs.DEVICE_TREE }} -b ${{ github.event.inputs.DEVICE_TREE_BRANCH }} ./${{ github.event.inputs.DEVICE_PATH }}
+      working-directory: ${{ steps.props.outputs.workdir }}
+
+    - name: Clone Missing/Deleted Repositories (Tambal lptools)
+      run: |
+        # Mengklon manual repo lptools dari cadangan mirror aktif milik developer kontributor TWRP
+        git clone https://github.com/crdroidandroid/android_external_lptools.git -b 11.0 ./external/lptools
       working-directory: ${{ steps.props.outputs.workdir }}
 
     - name: Check Build Tree Type
@@ -198,6 +204,6 @@ jobs:
           ### SkyHawk Recovery Project (SHRP) Unofficial Build
           - **Device**: `${{ github.event.inputs.DEVICE_NAME }}`
           - **Manifest Branch**: `${{ github.event.inputs.MANIFEST_BRANCH }}`
-          - **Build Date**: `${{ steps.props.outputs.date }}`
+          - **Build Date**: `${{ steps.outputs.date }}`
           
           _Status: Alpha Build - Test at your own risk._
