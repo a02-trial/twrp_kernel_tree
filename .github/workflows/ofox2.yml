@@ -23,7 +23,7 @@ on:
 jobs:
   build:
     name: Build OFRP
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-20.04
     permissions:
       contents: write
     env:
@@ -50,7 +50,16 @@ jobs:
     - name: Installing python2 for legacy builds
       if: inputs.MANIFEST_BRANCH != '12.1'
       run: |
-        sudo apt-get install python2 python-is-python2
+        cd /tmp
+        wget https://www.python.org/ftp/python/2.7.18/Python-2.7.18.tgz
+        tar xzf Python-2.7.18.tgz
+        cd Python-2.7.18
+        ./configure --enable-optimizations
+        make -j$(nproc)
+        sudo make install
+        sudo ln -sf /usr/local/bin/python2.7 /usr/bin/python
+        sudo ln -sf /usr/local/bin/python2.7 /usr/bin/python2
+        python2 --version
 
     - name: Sync OrangeFox Manifest
       run: |
