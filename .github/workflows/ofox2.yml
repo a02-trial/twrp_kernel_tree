@@ -33,8 +33,16 @@ jobs:
     - name: Checkout
       uses: actions/checkout@v4
 
-    - name: Clean Runner
-      uses: rokibhasansagar/slimhub_actions@main
+    - name: Maximize Build Space (Fast Clean)
+      uses: easimon/maximize-build-space@master
+      with:
+        root-reserve-mb: 20480 # Sisakan 20GB untuk sistem, sisanya babat habis buat build
+        swap-size-mb: 12288   # Ini otomatis bikin Swap 12GB!
+        remove-dotnet: 'true'
+        remove-android: 'true'
+        remove-haskell: 'true'
+        remove-codeql: 'true'
+        remove-docker-images: 'true'
 
     - name: Swap Space 12GB
       uses: pierotofy/set-swap-space@master
