@@ -56,8 +56,8 @@ jobs:
     - name: Maximize Build Space & Set Swap (Fast Clean terpadu)
       uses: easimon/maximize-build-space@master
       with:
-        root-reserve-mb: 20480 # Sisakan 20GB untuk OS, sisanya babat habis buat workspace
-        swap-size-mb: 12288   # Otomatis membuat Swap Space 12GB ramah kompilasi
+        root-reserve-mb: 20480 
+        swap-size-mb: 12288   
         remove-dotnet: 'true'
         remove-android: 'true'
         remove-haskell: 'true'
@@ -69,18 +69,6 @@ jobs:
       run: |
         echo "date=$(TZ=Asia/Jakarta date +%Y%m%d)" >> $GITHUB_OUTPUT
         echo "workdir=${GITHUB_WORKSPACE}/workspace" >> $GITHUB_OUTPUT
-
-    - name: Display Inputs
-      run: |
-        echo "Displaying variables/inputs."
-        echo "Manifest URL: ${{ github.event.inputs.MANIFEST_URL }}"
-        echo "Manifest Branch: ${{ github.event.inputs.MANIFEST_BRANCH }}"
-        echo "Device Tree: ${{ github.event.inputs.DEVICE_TREE }}"
-        echo "Device Branch: ${{ github.event.inputs.DEVICE_TREE_BRANCH }}"
-        echo "Device Path: ${{ github.event.inputs.DEVICE_PATH }}"
-        echo "Device Name: ${{ github.event.inputs.DEVICE_NAME }}"
-        echo "Makefile Name: ${{ github.event.inputs.MAKEFILE_NAME }}"
-        echo "Build Target: ${{ github.event.inputs.BUILD_TARGET }}image"
 
     - name: Prepare the Environment
       run: |
@@ -102,9 +90,10 @@ jobs:
         chmod a+x ~/bin/repo
         sudo ln -sf ~/bin/repo /usr/bin/repo
 
-    - name: Cache SHRP Source (Base Repo)
-      id: cache-shrp
-      uses: actions/cache@v4
+    # MODIFIKASI TAČTIS: Cuma nge-restore cache di awal (ga bakal otomatis nge-save pas akhir)
+    - name: Restore SHRP Source Cache
+      id: restore-shrp
+      uses: actions/cache/restore@v4
       with:
         path: ${{ steps.props.outputs.workdir }}/.repo
         key: ${{ runner.os }}-shrp-sync-${{ github.event.inputs.MANIFEST_BRANCH }}-${{ steps.props.outputs.date }}
@@ -119,7 +108,6 @@ jobs:
         git config --global user.email "theodoreluchy@gmail.com"
         repo init --depth=1 -u ${{ github.event.inputs.MANIFEST_URL }} -b ${{ github.event.inputs.MANIFEST_BRANCH }}
         
-        # FIX SYNC: Menyisir dan melibas baris lptools di SEMUA file XML manifest agar sync lolos
         echo "Ngebabat semua referensi lptools dari seluruh penjuru manifest lokal..."
         find .repo/ -name "*.xml" -type f -exec sed -i '/external\/lptools/d' {} +
         find .repo/ -name "*.xml" -type f -exec sed -i '/vendor_lptools/d' {} +
@@ -128,6 +116,14 @@ jobs:
       run: |
         repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
       working-directory: ${{ steps.props.outputs.workdir }}
+
+    # MODIFIKASI UTAMA: Paksa SAVE cache detik ini juga! Mau build eror di bawah, repo aman kesimpen!
+    - name: Force Save SHRP Source Cache (Anti Error Pegel)
+      uses: actions/cache/save@v4
+      if: always() && steps.restore-shrp.outputs.cache-hit != 'true'
+      with:
+        path: ${{ steps.props.outputs.workdir }}/.repo
+        key: ${{ runner.os }}-shrp-sync-${{ github.event.inputs.MANIFEST_BRANCH }}-${{ steps.props.outputs.date }}
       
     - name: Clone Device Tree
       run: |
@@ -136,7 +132,6 @@ jobs:
 
     - name: Clone Missing/Deleted Repositories (Tambal lptools)
       run: |
-        # Mengklon manual repo lptools dari cadangan mirror aktif milik developer kontributor TWRP
         git clone https://github.com/crdroidandroid/android_external_lptools.git -b 11.0 ./external/lptools
       working-directory: ${{ steps.props.outputs.workdir }}
 
@@ -204,6 +199,4 @@ jobs:
           ### SkyHawk Recovery Project (SHRP) Unofficial Build
           - **Device**: `${{ github.event.inputs.DEVICE_NAME }}`
           - **Manifest Branch**: `${{ github.event.inputs.MANIFEST_BRANCH }}`
-          - **Build Date**: `${{ steps.outputs.date }}`
-          
-          _Status: Alpha Build - Test at your own risk._
+          - **Build Date**: `${{ steps.props.outputs.date }}`
