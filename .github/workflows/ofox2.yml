@@ -14,7 +14,7 @@ on:
       DEVICE_TREE:
         description: 'Device Tree URL'
         required: true
-        default: 'https://github.com/username/device_tree'
+        default: 'https://github.com/a02-trial/twrp_kernel_tree'
       DEVICE_TREE_BRANCH:
         description: 'Device Tree Branch'
         required: true
