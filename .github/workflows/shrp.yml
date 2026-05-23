@@ -1,17 +1,10 @@
 name: Recovery Builder - SHRP
 
-# Credits to:
-# https://github.com/that1 for ldcheck and libneeds script
-# https://github.com/TeamWin for QCom' Decryption Guide 
-# https://github.com/minimal-manifest-twrp for TWRP Manifest
-# https://github.com/azwhikaru for Recovery Builder Template
-# And all Contributors in every repositories I used
-
 on:
   workflow_dispatch:
     inputs:
       MANIFEST_URL:
-        description: 'Manifest'
+        description: 'Manifest URL'
         required: true
         default: 'https://github.com/SHRP/manifest.git'
       MANIFEST_BRANCH:
@@ -23,27 +16,27 @@ on:
         - shrp-12.1
         - v3_11.0
       DEVICE_TREE:
-        description: 'Custom Recovery Tree' # Your already made Device Tree for TWRP
+        description: 'Custom Recovery Tree'
         required: true
         default: 'https://github.com/a02-trial/twrp_kernel_tree'
       DEVICE_TREE_BRANCH:
-        description: 'Custom Recovery Tree Branch' # Your Device Tree Branch, make sure it's right.
+        description: 'Custom Recovery Tree Branch'
         required: true
         default: 'main'
       DEVICE_PATH:
-        description: 'Specify your Device Path' # As is, just like your DEVICE_PATH in your BoardConfig.mk
+        description: 'Specify your Device Path'
         required: true
         default: 'device/samsung/a02'
       DEVICE_NAME:
-        description: 'Specify your Device Codename' # As is, just like your PRODUCT_DEVICE in your device tree.
+        description: 'Specify your Device Codename'
         required: true
         default: 'a02'
       MAKEFILE_NAME:
-        description: 'Specify your Makefile Name' # Look for twrp_ or omni_codename.mk, just remove the .mk
+        description: 'Specify your Makefile Name'
         required: true
         default: 'omni_a02'
       BUILD_TARGET:
-        description: 'Specify your Build Target' # Pick among boot, recovery and vendor_boot
+        description: 'Specify your Build Target'
         required: true
         default: 'recovery'
 
@@ -52,12 +45,31 @@ permissions:
 
 jobs:
   build:
+    name: Build SHRP
     if: github.event.repository.owner.id == github.event.sender.id
     runs-on: ubuntu-22.04
+    
     steps:
     - name: Check Out
-      uses: actions/checkout@v2.5.0
+      uses: actions/checkout@v4
       
+    - name: Maximize Build Space & Set Swap (Fast Clean terpadu)
+      uses: easimon/maximize-build-space@master
+      with:
+        root-reserve-mb: 20480 # Sisakan 20GB untuk OS, sisanya babat habis buat workspace
+        swap-size-mb: 12288   # Otomatis membuat Swap Space 12GB ramah kompilasi
+        remove-dotnet: 'true'
+        remove-android: 'true'
+        remove-haskell: 'true'
+        remove-codeql: 'true'
+        remove-docker-images: 'true'
+
+    - name: Set Build Properties
+      id: props
+      run: |
+        echo "date=$(TZ=Asia/Jakarta date +%Y%m%d)" >> $GITHUB_OUTPUT
+        echo "workdir=${GITHUB_WORKSPACE}/workspace" >> $GITHUB_OUTPUT
+
     - name: Display Inputs
       run: |
         echo "Displaying variables/inputs."
@@ -70,20 +82,11 @@ jobs:
         echo "Makefile Name: ${{ github.event.inputs.MAKEFILE_NAME }}"
         echo "Build Target: ${{ github.event.inputs.BUILD_TARGET }}image"
 
-    - name: Cleanup
-      uses: rokibhasansagar/slimhub_actions@main
-      
-    - name: Set Swap Space
-      uses: pierotofy/set-swap-space@master
-      with:
-        swap-size-gb: 12
-
     - name: Prepare the Environment
       run: |
-        sudo apt remove shim-signed grub-efi-amd64-bin --allow-remove-essential
+        sudo apt remove shim-signed grub-efi-amd64-bin --allow-remove-essential -y
         sudo apt-get update
-        sudo apt-get -y upgrade
-        sudo apt-get -y install gperf gcc-multilib gcc-10-multilib g++-multilib g++-10-multilib libc6-dev lib32ncurses5-dev x11proto-core-dev libx11-dev tree lib32z-dev libgl1-mesa-dev libxml2-utils xsltproc bc ccache lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libsdl1.2-dev libwxgtk3.0-gtk3-dev libxml2 lzop pngcrush schedtool squashfs-tools imagemagick libbz2-dev lzma ncftp qemu-user-static libstdc++-10-dev 2to3 python2-minimal python2 dh-python python-is-python3
+        sudo apt-get -y install gperf gcc-multilib gcc-10-multilib g++-multilib g++-10-multilib libc6-dev lib32ncurses5-dev x11proto-core-dev libx11-dev tree lib32z-dev libgl1-mesa-dev libxml2-utils xsltproc bc ccache lib32readline-dev lib32z1-dev liblz4-tool libncurses5-dev libsdl1.2-dev libwxgtk3.0-gtk3-dev libxml2 lzop pngcrush schedtool squashfs-tools imagemagick libbz2-dev lzma ncftp qemu-user-static libstdc++-10-dev python2-minimal python2 python-is-python3 aria2
 
     - name: Install OpenJDK
       uses: actions/setup-java@v4
@@ -93,81 +96,108 @@ jobs:
         
     - name: Install Git-Repo
       run: |
+        mkdir -p ~/bin
         git config --global advice.detachedHead false
         git clone https://android.googlesource.com/tools/repo -b v2.30 ~/bin
         chmod a+x ~/bin/repo
         sudo ln -sf ~/bin/repo /usr/bin/repo
 
+    - name: Cache SHRP Source (Base Repo)
+      id: cache-shrp
+      uses: actions/cache@v4
+      with:
+        # Hanya menge-cache folder .repo di dalam direktori workspace agar hemat storage cache GitHub
+        path: ${{ steps.props.outputs.workdir }}/.repo
+        key: ${{ runner.os }}-shrp-sync-${{ github.event.inputs.MANIFEST_BRANCH }}-${{ steps.props.outputs.date }}
+        restore-keys: |
+          ${{ runner.os }}-shrp-sync-${{ github.event.inputs.MANIFEST_BRANCH }}-
+
     - name: Initialize Repo
       run: |
-        mkdir workspace
-        cd workspace
-        echo "workdir=$(pwd)" >> $GITHUB_OUTPUT
+        mkdir -p ${{ steps.props.outputs.workdir }}
+        cd ${{ steps.props.outputs.workdir }}
         git config --global user.name "TheoLuc"
         git config --global user.email "theodoreluchy@gmail.com"
+        # --depth=1 dikombinasikan dengan caching .repo biar sync berikutnya cuma narik delta commit baru
         repo init --depth=1 -u ${{ github.event.inputs.MANIFEST_URL }} -b ${{ github.event.inputs.MANIFEST_BRANCH }}
-      id: pwd
-        
+
     - name: Repo Sync
       run: |
         repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
-      working-directory: workspace
+      working-directory: ${{ steps.props.outputs.workdir }}
       
     - name: Clone Device Tree
       run: |
         git clone ${{ github.event.inputs.DEVICE_TREE }} -b ${{ github.event.inputs.DEVICE_TREE_BRANCH }} ./${{ github.event.inputs.DEVICE_PATH }}
-      working-directory: ${{ steps.pwd.outputs.workdir }}
+      working-directory: ${{ steps.props.outputs.workdir }}
 
-    - name: Check Build Tree
+    - name: Check Build Tree Type
       uses: haya14busa/action-cond@v1
       id: buildtree
       with:
-        cond: ${{ github.event.inputs.MANIFEST_BRANCH == 'twrp-11' || github.event.inputs.MANIFEST_BRANCH == 'twrp-12.1' }}
-        if_true: twrp
-        if_false: omni
+        cond: ${{ github.event.inputs.MANIFEST_BRANCH == 'v3_11.0' }}
+        if_true: omni
+        if_false: twrp
 
     - name: Sync Dependencies
       run: |
-        bash ${GITHUB_WORKSPACE}/scripts/convert.sh ${{ github.event.inputs.DEVICE_PATH }}/${{ steps.buildtree.outputs.value }}.dependencies
-        repo sync -j$(nproc --all)
-      working-directory: ${{ steps.pwd.outputs.workdir }}
+        if [ -f "${{ github.event.inputs.DEVICE_PATH }}/${{ steps.buildtree.outputs.value }}.dependencies" ]; then
+          echo "Dependencies file found, syncing..."
+          # Menggunakan fallback skrip internal jika konverter tidak ada
+          if [ -d "${GITHUB_WORKSPACE}/scripts" ]; then
+            bash ${GITHUB_WORKSPACE}/scripts/convert.sh ${{ github.event.inputs.DEVICE_PATH }}/${{ steps.buildtree.outputs.value }}.dependencies
+          fi
+          repo sync -j$(nproc --all)
+        else
+          echo "No custom dependencies file detected. Skipping."
+        fi
+      working-directory: ${{ steps.steps.props.outputs.workdir }}
       continue-on-error: true
 
     - name: Building Recovery
       run: |
         source build/envsetup.sh
         export ALLOW_MISSING_DEPENDENCIES=true
-        lunch ${{ github.event.inputs.MAKEFILE_NAME }}-eng && make clean && make ${{ github.event.inputs.BUILD_TARGET }}image -j$(nproc --all)
+        
+        # Deteksi otomatis tipe lunch target berdasarkan branch manifest
+        if [ "${{ github.event.inputs.MANIFEST_BRANCH }}" == "v3_11.0" ]; then
+          lunch omni_${{ github.event.inputs.DEVICE_NAME }}-eng
+        else
+          lunch twrp_${{ github.event.inputs.DEVICE_NAME }}-eng
+        fi
+        
+        make clean
+        make ${{ github.event.inputs.BUILD_TARGET }}image -j$(nproc --all)
         echo "Done building your ${{ github.event.inputs.BUILD_TARGET }}.img"
-      working-directory: ${{ steps.pwd.outputs.workdir }}
+      working-directory: ${{ steps.props.outputs.workdir }}
       
-    - name: Set Properties # Output will be use in final name of recovery.
-      id: props
-      run: |
-        echo "date=$(date +%Y%m%d)" >> $GITHUB_OUTPUT
-      
-    - name: Renaming into SHRP
+    - name: Renaming into SHRP Official Format
       run: |
         cd out/target/product/${{ github.event.inputs.DEVICE_NAME }}
-        mv ${{ github.event.inputs.BUILD_TARGET }}.img ${{ github.event.inputs.MANIFEST_BRANCH }}_3.1.0-v000-${{ github.event.inputs.DEVICE_NAME }}-${{ steps.props.outputs.date }}.img
-        echo "Done renaming into ${{ github.event.inputs.MANIFEST_BRANCH }}_3.1.0-v000-${{ github.event.inputs.DEVICE_NAME }}-${{ steps.props.outputs.date }}.img"
-      working-directory: ${{ steps.pwd.outputs.workdir }}
+        # Mencari berkas gambar yang valid secara dinamis
+        TARGET_IMG="${{ github.event.inputs.BUILD_TARGET }}.img"
+        if [ -f "$TARGET_IMG" ]; then
+          mv "$TARGET_IMG" "SHRP_${{ github.event.inputs.MANIFEST_BRANCH }}_${{ github.event.inputs.DEVICE_NAME }}-${{ steps.props.outputs.date }}.img"
+          echo "Done renaming into SHRP_${{ github.event.inputs.MANIFEST_BRANCH }}_${{ github.event.inputs.DEVICE_NAME }}-${{ steps.props.outputs.date }}.img"
+        else
+          echo "Error: Output image not found!"
+          exit 1
+        fi
+      working-directory: ${{ steps.props.outputs.workdir }}
       
     - name: Upload to Release
-      uses: ncipollo/release-action@v1.11.1
+      uses: ncipollo/release-action@v1.14.0
       with:
-        artifacts: workspace/out/target/product/${{ github.event.inputs.DEVICE_NAME }}/${{ github.event.inputs.MANIFEST_BRANCH }}*.img
-        name: Unofficial SHRP for ${{ github.event.inputs.DEVICE_NAME }} - Build ${{ steps.props.outputs.date }} / ${{ github.run_id }}
+        artifacts: workspace/out/target/product/${{ github.event.inputs.DEVICE_NAME }}/SHRP*.img
+        name: Unofficial SHRP for ${{ github.event.inputs.DEVICE_NAME }} - Build ${{ steps.props.outputs.date }}
         draft: false
         prerelease: true
         tag: ${{ github.run_id }}-${{ steps.props.outputs.date }}
         token: ${{ secrets.GITHUB_TOKEN }}
         body: |
-          Device: ${{ github.event.inputs.DEVICE_NAME }}
-          Manifest: ${{ github.event.inputs.MANIFEST_URL }} -b ${{ github.event.inputs.MANIFEST_BRANCH }}
-          Status: Alpha - Test it Yourself.
-
-    - name: Link of Release
-      run: |
-        echo "Here is your newly-built Custom Recovery."
-        echo "https://github.com/${GITHUB_REPOSITORY}/releases/tag/${{ github.run_id }}-${{ steps.props.outputs.date }}"
+          ### SkyHawk Recovery Project (SHRP) Unofficial Build
+          - **Device**: `${{ github.event.inputs.DEVICE_NAME }}`
+          - **Manifest Branch**: `${{ github.event.inputs.MANIFEST_BRANCH }}`
+          - **Build Date**: `${{ steps.props.outputs.date }}`
+          
+          _Status: Alpha Build - Test at your own risk._
