@@ -106,7 +106,6 @@ jobs:
       id: cache-shrp
       uses: actions/cache@v4
       with:
-        # Hanya menge-cache folder .repo di dalam direktori workspace agar hemat storage cache GitHub
         path: ${{ steps.props.outputs.workdir }}/.repo
         key: ${{ runner.os }}-shrp-sync-${{ github.event.inputs.MANIFEST_BRANCH }}-${{ steps.props.outputs.date }}
         restore-keys: |
@@ -118,13 +117,22 @@ jobs:
         cd ${{ steps.props.outputs.workdir }}
         git config --global user.name "TheoLuc"
         git config --global user.email "theodoreluchy@gmail.com"
-        # --depth=1 dikombinasikan dengan caching .repo biar sync berikutnya cuma narik delta commit baru
         repo init --depth=1 -u ${{ github.event.inputs.MANIFEST_URL }} -b ${{ github.event.inputs.MANIFEST_BRANCH }}
+        
+        # FIX UTAMA: Ngebabat repo external/lptools yang mati dari manifest lokal sebelum sync dilakukan
+        if [ -f ".repo/manifests/default.xml" ]; then
+          echo "Menghapus referensi external/lptools dari manifest..."
+          sed -i '/external\/lptools/d' .repo/manifests/default.xml
+          sed -i '/vendor_lptools/d' .repo/manifests/default.xml
+        elif [ -f ".repo/manifest.xml" ]; then
+          echo "Menghapus referensi external/lptools dari manifest utama..."
+          sed -i '/external\/lptools/d' .repo/manifest.xml
+          sed -i '/vendor_lptools/d' .repo/manifest.xml
+        fi
 
     - name: Repo Sync
       run: |
-        # Menambahkan --force-broken agar tidak stop jika ada repo yang 404/hilang
-        repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags --force-broken
+        repo sync -c -j$(nproc --all) --force-sync --no-clone-bundle --no-tags
       working-directory: ${{ steps.props.outputs.workdir }}
       
     - name: Clone Device Tree
@@ -144,7 +152,6 @@ jobs:
       run: |
         if [ -f "${{ github.event.inputs.DEVICE_PATH }}/${{ steps.buildtree.outputs.value }}.dependencies" ]; then
           echo "Dependencies file found, syncing..."
-          # Menggunakan fallback skrip internal jika konverter tidak ada
           if [ -d "${GITHUB_WORKSPACE}/scripts" ]; then
             bash ${GITHUB_WORKSPACE}/scripts/convert.sh ${{ github.event.inputs.DEVICE_PATH }}/${{ steps.buildtree.outputs.value }}.dependencies
           fi
@@ -152,7 +159,7 @@ jobs:
         else
           echo "No custom dependencies file detected. Skipping."
         fi
-      working-directory: ${{ steps.steps.props.outputs.workdir }}
+      working-directory: ${{ steps.props.outputs.workdir }}
       continue-on-error: true
 
     - name: Building Recovery
@@ -160,7 +167,6 @@ jobs:
         source build/envsetup.sh
         export ALLOW_MISSING_DEPENDENCIES=true
         
-        # Deteksi otomatis tipe lunch target berdasarkan branch manifest
         if [ "${{ github.event.inputs.MANIFEST_BRANCH }}" == "v3_11.0" ]; then
           lunch omni_${{ github.event.inputs.DEVICE_NAME }}-eng
         else
@@ -175,7 +181,6 @@ jobs:
     - name: Renaming into SHRP Official Format
       run: |
         cd out/target/product/${{ github.event.inputs.DEVICE_NAME }}
-        # Mencari berkas gambar yang valid secara dinamis
         TARGET_IMG="${{ github.event.inputs.BUILD_TARGET }}.img"
         if [ -f "$TARGET_IMG" ]; then
           mv "$TARGET_IMG" "SHRP_${{ github.event.inputs.MANIFEST_BRANCH }}_${{ github.event.inputs.DEVICE_NAME }}-${{ steps.props.outputs.date }}.img"
